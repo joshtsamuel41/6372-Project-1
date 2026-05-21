@@ -7,18 +7,10 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Objective 1
-Hospitals are constantly trying to understand what impacts the duration of a
-patients stay. The data set consists of 11 variables collected on each of 113 hospitals. One of
-the variables is the hospitals infection risk, which is an estimated probability of a patient
-acquiring a hospital related infection. The hospitals are interest to know if the infection risk
-and related factors are associated with a patient’s length of stay even after accounting for other
-variables that would/may impact hospital stays such as Age, Number of nurses, number of
-patients per day, number of beds, routine medical checks, etc. Produce a regression model to
-address the primary question.
+# EDA
 
 
-# Libraries
+## Libraries
 ```{r}
 library(car)
 library(corrplot)
@@ -29,7 +21,7 @@ library(caret)   #for prediction models and k-fold CV
 library(naniar)  #for graphing missing data behavior
 ```
 
-# Read in Data
+## Read in Data
 ```{r}
 df = read.csv('/Users/joshtsamuel/SMU/6372 Applied Statistics- Inference and Modeling/Project 1/HospitalDurations.csv')
 ```
@@ -47,9 +39,10 @@ df = df %>%
 str(df)
 ```
 
-# EDA
+## Plotting
 
 ```{r}
+# GGPairs
 response = "Lgth.of.Sty"
 predictors = setdiff(names(df), c(response, "ID"))
 ggpairs(df,columns = c(response, predictors))
@@ -75,7 +68,7 @@ ggplot(df, aes(x = Med.Sc.Aff, y = Lgth.of.Sty)) +
 # hospitals who do have a medical school affiliation have avg longer length of stay
 
 ggplot(df, aes(x = Inf.Risk, y = Lgth.of.Sty, color = Region)) +
-  geom_point() + geom_smooth()
+  geom_point() + geom_smooth() +
   labs(
     x = "Infection Risk",
     y = "Length of Stay",
@@ -111,9 +104,7 @@ corrplot(
 # inf.risk -> kinda MED CORR to all
 ```
 
-# Modeling
-
-
+## Modeling
 ```{r}
 # normal
 mlr1 = lm(Lgth.of.Sty ~ . - ID, data = df)
@@ -144,11 +135,177 @@ summary(mlr3)
 par(mfrow = c(2, 2))
 plot(mlr3)
 par(mfrow = c(1, 1))
-
-
-
-
 ```
 
 
+# OBJECTIVE 1
 
+```{r}
+# OBJECTIVE 1
+
+## Main Objective 1 Model
+
+# Main effects model for interpretation
+fit_obj1 <- lm(Lgth.of.Sty ~ . - ID, data = df)
+
+summary(fit_obj1)
+```
+
+
+## stepwise feature selection
+```{r}
+library(tidyverse)
+library(caret)
+library(MASS)
+library(broom)
+library(car)
+
+library(tidyverse)
+library(caret)
+library(leaps)
+
+# Prepare data
+df_fs <- df %>%
+  dplyr::select(-ID) %>%
+  tidyr::drop_na()
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 1
+)
+
+set.seed(1234)
+
+fs_fit <- train(
+  Lgth.of.Sty ~ .,
+  data = df_fs,
+  method = "leapSeq",
+  trControl = fitControl,
+  tuneGrid = expand.grid(nvmax = 1:10)
+)
+
+fs_fit
+plot(fs_fit)
+```
+
+## lasso
+```{r}
+df_lasso <- df %>%
+  dplyr::select(-ID) %>%
+  tidyr::drop_na()
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 1
+)
+
+set.seed(1234)
+
+glmnet.fit.simple <- train(
+  Lgth.of.Sty ~ .,
+  data = df_lasso,
+  method = "glmnet",
+  trControl = fitControl,
+  tuneGrid = expand.grid(
+    alpha = 1,
+    lambda = seq(0.0, .2, by = 0.001)
+  )
+)
+
+glmnet.fit.simple
+plot(glmnet.fit.simple)
+
+opt.pen.simple <- glmnet.fit.simple$finalModel$lambdaOpt
+
+coef(glmnet.fit.simple$finalModel, opt.pen.simple)
+
+# trying out other lambdas
+coef(glmnet.fit.simple$finalModel, s = 0.05)
+coef(glmnet.fit.simple$finalModel, s = 0.10)
+coef(glmnet.fit.simple$finalModel, s = 0.20)
+coef(glmnet.fit.simple$finalModel, s = 0.50)
+```
+
+We tried feature selection, but both methods favored keeping all predictors. Therefore, our final Objective 1 model is the full main-effects multiple linear regression model with all hospital characteristics included except ID.
+
+To evaluate whether a smaller model was preferred, we used two feature selection approaches: sequential subset selection and LASSO regression. Both methods used 10-fold cross-validation and RMSE as the primary selection metric. The sequential selection procedure selected the model with all 10 predictors. The LASSO model selected a very small penalty value, λ=0.001, which resulted in all predictors remaining in the model. Therefore, feature selection did not provide evidence for removing any of the hospital characteristics from the Objective 1 model.
+
+Your LASSO output supports that because the optimal model used:
+
+alpha = 1
+lambda = 0.001
+
+and every predictor had a nonzero coefficient.
+
+Feature selection did not simplify the model. The data favored keeping the full set of predictors.
+
+```{r}
+summary(fit_obj1)$coefficients["Inf.Risk", ]
+confint(fit_obj1, "Inf.Risk")
+```
+
+After accounting for the other hospital characteristics, we tested whether infection risk was significantly associated with average length of stay.
+
+Holding all other hospital characteristics constant, a one-unit increase in infection risk is associated with an estimated [estimate] day change in average length of stay. The 95% confidence interval is ([lower], [upper]). Since this interval [does/does not] contain 0, infection risk [is/is not] statistically significant after accounting for the other variables in the model.
+
+## adding interaction bewtween infection risk and region
+```{r}
+# Prepare data
+df_fs <- df %>%
+  dplyr::select(-ID) %>%
+  tidyr::drop_na()
+
+fit_obj1_int <- lm(
+  Lgth.of.Sty ~ . + Inf.Risk:Region,
+  data = df_fs
+)
+summary(fit_obj1_int)
+
+# seeing if interaction is needed
+anova(fit_obj1, fit_obj1_int)
+```
+
+We added an interaction between infection risk and region to test whether the association between infection risk and average length of stay differed by geographic region. The interaction model significantly improved fit compared to the main-effects model, F=2.86, p=0.041. This suggests that the relationship between infection risk and length of stay depends on region. In Region 1, a one-unit increase in infection risk was associated with an estimated 0.96-day increase in average length of stay, holding the other hospital characteristics constant. However, this relationship was weaker in Regions 2, 3, and 4. The estimated infection-risk slopes were approximately 0.33, 0.38, and 0.09 days for Regions 2, 3, and 4, respectively.
+
+### using interaction + lasso feature selection
+```{r}
+df_lasso_int <- df %>%
+  dplyr::select(-ID) %>%
+  tidyr::drop_na()
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 1
+)
+
+set.seed(1234)
+
+glmnet.fit.simple <- train(
+  Lgth.of.Sty ~ . + Inf.Risk:Region,
+  data = df_lasso_int,
+  method = "glmnet",
+  trControl = fitControl,
+  tuneGrid = expand.grid(
+    alpha = 1,
+    lambda = seq(0, .20, by = 0.001)
+  )
+)
+
+glmnet.fit.simple
+plot(glmnet.fit.simple)
+
+opt.pen.simple <- glmnet.fit.simple$finalModel$lambdaOpt
+
+coef(glmnet.fit.simple$finalModel, opt.pen.simple)
+
+# trying out other lambdas
+coef(glmnet.fit.simple$finalModel, s = 0.05)
+coef(glmnet.fit.simple$finalModel, s = 0.10)
+coef(glmnet.fit.simple$finalModel, s = 0.20)
+coef(glmnet.fit.simple$finalModel, s = 0.50)
+```
+
+We also used LASSO regression with the infection risk by region interaction included. The optimal model selected by cross-validation used λ=0.021, which produced an RMSE of approximately 1.24 days. Unlike the earlier LASSO model, this interaction model removed several predictors, including routine culturing ratio and number of beds. Importantly, LASSO retained infection risk and the infection risk by region interaction terms, suggesting that infection risk is an important predictor and that its association with length of stay may vary by region. Because interaction models are easier to interpret when main effects are retained, the final regression model keeps both infection risk and region along with their interaction.
