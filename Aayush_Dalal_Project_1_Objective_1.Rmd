@@ -1,0 +1,154 @@
+---
+title: "Aayush Dalal's Objective 1 for Project 1 of Applied Statistics"
+author: "Aayush Dalal"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(car)
+library(MASS)
+library(broom)
+library(knitr)
+```
+
+```{r}
+hospital <- read.csv("HospitalDurations.csv")
+
+names(hospital) <- c(
+  "ID",
+  "LengthStay",
+  "Age",
+  "InfectionRisk",
+  "RoutineCultureRatio",
+  "RoutineChestXrayRatio",
+  "Beds",
+  "MedSchoolAffiliation",
+  "Region",
+  "AvgDailyCensus",
+  "AvgNurses",
+  "PctServicesFacilities"
+)
+
+hospital$Region <- factor(
+  hospital$Region,
+  levels = c(1,2,3,4),
+  labels = c("NE","NC","S","W")
+)
+
+hospital$MedSchoolAffiliation <- factor(
+  hospital$MedSchoolAffiliation,
+  levels = c(1,2),
+  labels = c("Yes","No")
+)
+```
+
+# Objective 1: Multiple Linear Regression Model Development
+
+Based on the exploratory analysis, infection risk appeared to be the strongest predictor of hospital length of stay. Additionally, several measures of hospital size demonstrated moderate relationships with the response variable but were highly correlated with one another. Therefore, Objective 1 focuses on developing an interpretable multiple linear regression model while evaluating multicollinearity and model assumptions.
+
+## Full Model
+```{r}
+full_mod <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineCultureRatio +
+    RoutineChestXrayRatio +
+    Beds +
+    MedSchoolAffiliation +
+    Region +
+    AvgDailyCensus +
+    AvgNurses +
+    PctServicesFacilities,
+  data = hospital
+)
+
+summary(full_mod)
+```
+## Multicollinearity Assessment
+```{r}
+summary(full_mod)
+
+vif(full_mod)
+```
+A multiple linear regression model was fit using all available predictors to explain variation in average hospital length of stay. The model was statistically significant overall (F(12,100) = 14.18, p < 0.001) and explained approximately 63.0% of the variation in length of stay (R² = 0.630; Adjusted R² = 0.586).
+
+Variance Inflation Factors (VIFs) were calculated to assess multicollinearity among predictors. The largest VIF values were observed for Beds (35.70) and AvgDailyCensus (34.21), indicating severe multicollinearity. This finding was anticipated based on the exploratory analysis, where Beds and AvgDailyCensus exhibited a correlation of 0.98. AvgNurses also displayed elevated collinearity (VIF = 7.06). Therefore, model simplification was explored to reduce redundancy among hospital size variables.
+
+Examination of the coefficient table showed that Age, InfectionRisk, Region, AvgDailyCensus, and AvgNurses were statistically significant predictors of LengthStay at the 0.05 significance level. In contrast, RoutineCultureRatio, Beds, MedSchoolAffiliation, and PctServicesFacilities were not statistically significant. RoutineChestXrayRatio was marginally significant (p = 0.079). Because Beds exhibited severe multicollinearity and was not statistically significant, it was selected as the first variable for removal.
+
+
+## Reduced Model 1 (Removing Beds)
+```{r}
+mod1 <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineCultureRatio +
+    RoutineChestXrayRatio +
+    MedSchoolAffiliation +
+    Region +
+    AvgDailyCensus +
+    AvgNurses +
+    PctServicesFacilities,
+  data = hospital
+)
+
+summary(mod1)
+vif(mod1)
+```
+
+Because Beds and AvgDailyCensus exhibited a correlation of 0.98 and VIF values exceeding 34 in the full model, Beds was removed to reduce multicollinearity. The resulting model maintained virtually identical explanatory power (Adjusted R² = 0.582) while substantially reducing collinearity among predictors.
+
+Removing Beds reduced the largest VIF from approximately 35.7 to 7.3 while producing only a negligible decrease in model fit (Adjusted R² decreased from 0.586 to 0.582). This suggests that Beds provided little unique information beyond AvgDailyCensus and AvgNurses, supporting its removal from the model.
+
+## Reduced Model 2 (Final Candidate Model)
+```{r}
+mod2 <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineChestXrayRatio +
+    Region +
+    AvgDailyCensus +
+    AvgNurses,
+  data = hospital
+)
+
+summary(mod2)
+vif(mod2)
+```
+Predictors with little evidence of association in the reduced model, including RoutineCultureRatio, MedSchoolAffiliation, and PctServicesFacilities, were removed. The resulting model retained nearly identical explanatory power while improving parsimony and reducing multicollinearity. Adjusted R² remained at 0.585 and all retained predictors were either statistically significant or close to significance.
+
+The reduced model retained the variables most strongly associated with hospital length of stay while eliminating predictors that contributed little explanatory value. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators remained statistically significant, while RoutineChestXrayRatio remained near the 0.05 significance threshold. The adjusted R² remained virtually unchanged compared to the full model, indicating that little explanatory power was lost despite removing four predictors.
+
+## Model Comparison
+```{r}
+AIC(full_mod)
+AIC(mod1)
+AIC(mod2)
+
+BIC(full_mod)
+BIC(mod1)
+BIC(mod2)
+```
+Model selection criteria further supported the reduced model. Model 2 produced the lowest AIC (378.45) and BIC (405.73) values among all candidate models. Lower AIC and BIC values indicate a better balance between model fit and model complexity. Therefore, Model 2 was selected as the preferred model for subsequent interpretation and diagnostics.
+
+## Regression Diagnostics
+```{r}
+par(mfrow = c(2,2))
+plot(mod2)
+```
+
+## Confidence Intervals
+```{r}
+confint(mod2)
+```
+The confidence intervals support the significance results obtained from the hypothesis tests. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators had confidence intervals that excluded zero, indicating statistically significant effects. In contrast, the confidence interval for RoutineChestXrayRatio included zero, suggesting weaker evidence for its association with LengthStay despite its marginal p-value.
+
+
+## Objective 1 Conclusion
+
+InfectionRisk was the strongest predictor of hospital length of stay, with higher infection risk associated with longer stays. Age and AvgDailyCensus were also positively associated with LengthStay, while AvgNurses exhibited a negative relationship after controlling for hospital size. Significant regional differences were observed, with hospitals in the NC, S, and W regions experiencing shorter average stays than hospitals in the NE region.
+
+A reduced multiple linear regression model containing Age, Infection Risk, Routine Chest X-Ray Ratio, Region, Average Daily Census, and Average Nurses was selected as the final model. This model achieved the lowest AIC and BIC values while maintaining explanatory power comparable to more complex alternatives. Diagnostic plots indicated that model assumptions were reasonably satisfied, supporting the use of this model for explaining variation in hospital length of stay.
