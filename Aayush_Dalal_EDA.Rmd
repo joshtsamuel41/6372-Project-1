@@ -1,0 +1,202 @@
+---
+title: "Aayush Dalal's EDA of Hospitalized Stays"
+author: "Aayush Dalal"
+date: "2026-05-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(corrplot)
+library(car)
+```
+
+
+
+```{r}
+hospital <- read.csv("HospitalDurations.csv", check.names = TRUE)
+
+names(hospital) <- c(
+  "ID",
+  "LengthStay",
+  "Age",
+  "InfectionRisk",
+  "RoutineCultureRatio",
+  "RoutineChestXrayRatio",
+  "Beds",
+  "MedSchoolAffiliation",
+  "Region",
+  "AvgDailyCensus",
+  "AvgNurses",
+  "PctServicesFacilities"
+)
+
+hospital$Region <- factor(
+  hospital$Region,
+  levels = c(1, 2, 3, 4),
+  labels = c("NE", "NC", "S", "W")
+)
+
+hospital$MedSchoolAffiliation <- factor(
+  hospital$MedSchoolAffiliation,
+  levels = c(1, 2),
+  labels = c("Yes", "No")
+)
+
+summary(hospital)
+```
+### Data Cleaning Summary
+The dataset contained 113 hospitals and 12 variables. Variable names were renamed for readability, and Region and Medical School Affiliation were converted to categorical factors. No missing values were identified, so all observations were retained for analysis.
+
+
+```{r}
+table(hospital$MedSchoolAffiliation, useNA = "ifany")
+table(hospital$Region, useNA = "ifany")
+```
+
+```{r}
+par(mfrow=c(3,4))
+
+for(i in names(hospital[,sapply(hospital,is.numeric)])){
+  boxplot(hospital[[i]],
+          main=i)
+}
+```
+
+```{r}
+boxplot.stats(hospital$LengthStay)$out
+boxplot.stats(hospital$Beds)$out
+boxplot.stats(hospital$AvgDailyCensus)$out
+boxplot.stats(hospital$AvgNurses)$out
+```
+
+### Outlier Assessment
+Several observations were identified as potential outliers for length of stay, beds, average daily census, and nursing staff. These observations were retained because they appear to represent legitimately large hospitals rather than data-entry errors. Retaining them preserves meaningful variation within the population of hospitals.
+
+```{r}
+library(psych)
+
+describe(hospital)
+```
+
+### Summary Statistics Interpretation
+The average hospital stay was 9.65 days, with values ranging from 6.70 to 19.56 days. Hospitals varied substantially in size, with the number of beds ranging from 29 to 835 and average daily census ranging from 20 to 791 patients. Infection risk averaged 4.36%, indicating meaningful variation across hospitals.
+
+```{r}
+library(corrplot)
+
+numvars <- hospital[,sapply(hospital,is.numeric)]
+
+cor_matrix <- cor(numvars)
+
+round(cor_matrix, 2)
+```
+### Correlation Analysis
+The correlation matrix identified infection risk as the variable most strongly associated with length of stay (r = 0.53). Average daily census (r = 0.47) and number of beds (r = 0.41) also exhibited moderate positive relationships with the response variable. In contrast, age showed only a weak association with length of stay (r = 0.19).
+
+Several hospital size variables were highly correlated with one another, including beds and average daily census (r = 0.98), beds and average nurses (r = 0.92), and average daily census and average nurses (r = 0.91). These relationships suggest potential multicollinearity that will be investigated during model development.
+
+
+## Plot 1: Infection Risk vs Length of Stay
+
+```{r}
+ggplot(hospital,
+       aes(InfectionRisk, LengthStay)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+Infection risk exhibited the strongest relationship with length of stay among all predictors examined. Hospitals with higher infection risk generally tended to experience longer patient stays, suggesting infection risk may be an important predictor in the final regression model.
+
+## Plot 2: Average Daily Census vs Length of Stay
+
+```{r}
+ggplot(hospital,
+       aes(AvgDailyCensus, LengthStay)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+Average daily census demonstrated a moderate positive relationship with length of stay. Hospitals serving larger numbers of patients generally appeared to have longer average stays, indicating hospital workload may contribute to patient duration of care.
+
+
+## Plot 3: Beds vs Length of Stay
+```{r}
+ggplot(hospital,
+       aes(Beds, LengthStay)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+The number of beds was positively associated with length of stay. Larger hospitals tended to exhibit longer patient stays, although the relationship was not as strong as that observed for infection risk.
+
+
+
+## Plot 4: Percent Services & Facilities vs Length of Stay
+```{r}
+ggplot(hospital,
+       aes(PctServicesFacilities, LengthStay)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+Hospitals providing a larger percentage of available services and facilities tended to have slightly longer stays. This pattern may reflect that hospitals offering more specialized services care for patients with more complex medical conditions.
+
+
+## Plot 5: Age vs Length of Stay
+```{r}
+ggplot(hospital,
+       aes(Beds, AvgDailyCensus)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+Beds and average daily census exhibited an extremely strong positive relationship (r = 0.98). Because these variables measure similar aspects of hospital size, including both in the same regression model may introduce multicollinearity issues. Variance Inflation Factors (VIFs) will be examined during model selection.
+
+
+## Plot 6: Beds vs Average Daily Census
+```{r}
+ggplot(hospital,
+       aes(Age, LengthStay)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+### Interpretation
+Age displayed only a weak positive relationship with length of stay. While hospitals serving older populations may experience slightly longer patient stays, age alone does not appear to be a major driver of variation in stay duration.
+
+
+```{r}
+ggplot(hospital,
+       aes(InfectionRisk,
+           LengthStay,
+           color=Region)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE)
+```
+
+### Interaction Interpretation
+The relationship between infection risk and length of stay appeared to vary somewhat across geographic regions. Differences in slope suggest that the impact of infection risk may not be identical across all regions, making this interaction a candidate for further investigation during model building.
+
+
+```{r}
+ggplot(hospital,
+       aes(InfectionRisk,
+           LengthStay,
+           color=MedSchoolAffiliation)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE)
+```
+
+### Interaction Interpretation
+The relationship between infection risk and length of stay showed some differences between teaching and non-teaching hospitals. This pattern suggests medical school affiliation could potentially modify the effect of infection risk on patient stay duration.
+
+
+## EDA Conclusions
+
+Exploratory analysis identified infection risk as the strongest predictor of hospital length of stay. Hospital size measures, including average daily census, number of beds, and nursing staff, also demonstrated positive relationships with the response variable. Strong correlations among hospital size variables suggest potential multicollinearity, which will be formally evaluated during regression model development. The interaction plots further suggest that regional differences and medical school affiliation may influence how infection risk affects patient stay duration.
+
+Based on the exploratory analysis, infection risk appears to be the strongest predictor of hospital length of stay. Additionally, several measures of hospital size demonstrated moderate relationships with the response variable but were highly correlated with one another. Consequently, Objective 1 will focus on developing a multiple linear regression model while carefully evaluating multicollinearity through variance inflation factors and model selection techniques.
