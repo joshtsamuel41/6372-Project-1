@@ -1,0 +1,154 @@
+---
+title: "6372 - Project 1 (Josh Initial)"
+author: "Josh"
+date: "2026-05-21"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Objective 1
+Hospitals are constantly trying to understand what impacts the duration of a
+patients stay. The data set consists of 11 variables collected on each of 113 hospitals. One of
+the variables is the hospitals infection risk, which is an estimated probability of a patient
+acquiring a hospital related infection. The hospitals are interest to know if the infection risk
+and related factors are associated with a patient’s length of stay even after accounting for other
+variables that would/may impact hospital stays such as Age, Number of nurses, number of
+patients per day, number of beds, routine medical checks, etc. Produce a regression model to
+address the primary question.
+
+
+# Libraries
+```{r}
+library(car)
+library(corrplot)
+library(GGally)
+library(tidyverse)
+library(dplyr)
+library(caret)   #for prediction models and k-fold CV
+library(naniar)  #for graphing missing data behavior
+```
+
+# Read in Data
+```{r}
+df = read.csv('/Users/joshtsamuel/SMU/6372 Applied Statistics- Inference and Modeling/Project 1/HospitalDurations.csv')
+```
+
+```{r}
+str(df)
+vis_miss(df)
+dim(df)
+# no missing values
+```
+
+```{r}
+df = df %>%
+  mutate(across(c(Med.Sc.Aff, Region), as.factor))
+str(df)
+```
+
+# EDA
+
+```{r}
+response = "Lgth.of.Sty"
+predictors = setdiff(names(df), c(response, "ID"))
+ggpairs(df,columns = c(response, predictors))
+
+# Region 1 - 4 seems to go in order as longest length of stay to smallest
+
+ggplot(df, aes(x = Region, y = Lgth.of.Sty)) +
+  geom_boxplot() +
+  labs(
+    x = "Region",
+    y = "Length of Stay",
+    title = "Length of Stay by Region"
+  )
+
+ggplot(df, aes(x = Med.Sc.Aff, y = Lgth.of.Sty)) +
+  geom_boxplot() +
+  labs(
+    x = "Med School Affiliation (1 = Yes, 2 = No)",
+    y = "Length of Stay",
+    title = "Length of Stay by Medical School Affiliation"
+  )
+
+# hospitals who do have a medical school affiliation have avg longer length of stay
+
+ggplot(df, aes(x = Inf.Risk, y = Lgth.of.Sty, color = Region)) +
+  geom_point() + geom_smooth()
+  labs(
+    x = "Infection Risk",
+    y = "Length of Stay",
+    title = "Infection Risk vs Length of Stay By Region "
+  )
+```
+
+```{r}
+df_num <- df %>%
+  select(where(is.numeric)) %>%
+  select(-ID)   # remove ID column if needed
+
+cor_matrix <- cor(df_num, use = "complete.obs")
+cor_matrix
+
+install.packages("corrplot")
+library(corrplot)
+
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  addCoef.col = "black",
+  tl.cex = 0.8,
+  number.cex = 0.7
+)
+
+## Insights
+# n.beds -> avg.pat & avg.nur VERY HIGH CORR & pct.ser.fac HIGH CORR
+# avg.pat -> n.beds VERY HIGH CORR & pct.ser.fac HIGH CORR
+# avg.nur -> pct.ser.fac HIGH CORR
+# inf.risk -> R.cul.rat MID CORR & R.CX.ray.Rat MED CORR
+# inf.risk -> kinda MED CORR to all
+```
+
+# Modeling
+
+
+```{r}
+# normal
+mlr1 = lm(Lgth.of.Sty ~ . - ID, data = df)
+summary(mlr1)
+
+# Assumptions
+par(mfrow = c(2, 2))
+plot(mlr1)
+par(mfrow = c(1, 1))
+
+# Checking for Multicollinearity
+vif(mlr1)
+
+# With Interaction
+mlr2 = lm(Lgth.of.Sty ~ . - ID + Inf.Risk*Region, data = df)
+summary(mlr2)
+
+# Assumptions
+par(mfrow = c(2, 2))
+plot(mlr2)
+par(mfrow = c(1, 1))
+
+# log transform
+mlr3 = lm(log(Lgth.of.Sty) ~ . - ID, data = df)
+summary(mlr3)
+
+# Assumptions
+par(mfrow = c(2, 2))
+plot(mlr3)
+par(mfrow = c(1, 1))
+
+
+
+
+```
+
+
+
