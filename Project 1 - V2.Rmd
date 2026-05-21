@@ -1,0 +1,417 @@
+---
+title: "Hospitalization Stays Regression Analysis"
+author: "Josh Samuel, Aayush Dalal"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 7,
+  fig.height = 5
+)
+
+library(tidyverse)
+library(car)
+library(broom)
+library(knitr)
+library(caret)
+library(randomForest)
+```
+
+# Introduction
+
+Hospitals are often interested in understanding what factors are associated with the length of a patient’s stay. In this project, the response variable is average hospital length of stay, measured in days. Our first objective is to determine whether infection risk is associated with length of stay after accounting for other hospital characteristics. Our second objective is to compare several models based on predictive performance and recommend a model for predicting future hospital stays.
+
+# Data Description and Processing
+
+```{r data-import-clean}
+hospital <- read.csv("HospitalDurations.csv")
+
+# Rename variables to cleaner names
+names(hospital) <- c(
+  "ID",
+  "LengthStay",
+  "Age",
+  "InfectionRisk",
+  "RoutineCultureRatio",
+  "RoutineChestXrayRatio",
+  "Beds",
+  "MedSchoolAffiliation",
+  "Region",
+  "AvgDailyCensus",
+  "AvgNurses",
+  "PctServicesFacilities"
+)
+
+# Convert categorical variables to factors
+hospital <- hospital %>%
+  mutate(
+    MedSchoolAffiliation = factor(
+      MedSchoolAffiliation,
+      levels = c(1, 2),
+      labels = c("Yes", "No")
+    ),
+    Region = factor(
+      Region,
+      levels = c(1, 2, 3, 4),
+      labels = c("NE", "NC", "S", "W")
+    )
+  )
+
+# Modeling data
+hospital_model <- hospital %>%
+  dplyr::select(-ID) %>%
+  tidyr::drop_na()
+```
+
+```{r summary-statistics}
+hospital_model %>%
+  summary()
+```
+
+For this analysis, `ID` was excluded from modeling because it is only a hospital identifier. `Region` and `MedSchoolAffiliation` were treated as categorical variables.
+
+# Exploratory Data Analysis
+
+```{r eda-infection-risk}
+ggplot(hospital_model, aes(x = InfectionRisk, y = LengthStay)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Length of Stay vs Infection Risk",
+    x = "Infection Risk",
+    y = "Length of Stay"
+  )
+```
+
+The scatterplot suggests a positive relationship between infection risk and length of stay. Hospitals with higher infection risk tend to have longer average stays.
+
+```{r eda-age}
+ggplot(hospital_model, aes(x = Age, y = LengthStay)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Length of Stay vs Average Patient Age",
+    x = "Average Patient Age",
+    y = "Length of Stay"
+  )
+```
+
+Average patient age also appears to have a positive relationship with length of stay.
+
+```{r eda-census}
+ggplot(hospital_model, aes(x = AvgDailyCensus, y = LengthStay)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Length of Stay vs Average Daily Census",
+    x = "Average Daily Census",
+    y = "Length of Stay"
+  )
+```
+
+Hospitals with larger average daily census values appear to have longer average stays.
+
+```{r eda-nurses}
+ggplot(hospital_model, aes(x = AvgNurses, y = LengthStay)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Length of Stay vs Average Number of Nurses",
+    x = "Average Number of Nurses",
+    y = "Length of Stay"
+  )
+```
+
+The relationship between number of nurses and length of stay is less clear, likely because number of nurses is also related to hospital size and patient volume.
+
+```{r eda-interaction-region}
+ggplot(hospital_model, aes(x = InfectionRisk, y = LengthStay, color = Region)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Length of Stay vs Infection Risk by Region",
+    x = "Infection Risk",
+    y = "Length of Stay",
+    color = "Region"
+  )
+```
+
+This plot motivates a possible interaction between infection risk and region. The slope between infection risk and length of stay does not appear identical across all regions.
+
+```{r eda-interaction-med-school}
+ggplot(hospital_model, aes(x = InfectionRisk, y = LengthStay, color = MedSchoolAffiliation)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Length of Stay vs Infection Risk by Medical School Affiliation",
+    x = "Infection Risk",
+    y = "Length of Stay",
+    color = "Medical School Affiliation"
+  )
+```
+
+This plot explores whether the relationship between infection risk and length of stay differs by medical school affiliation.
+
+# Objective 1: Multiple Linear Regression Model Development
+
+Based on the exploratory analysis, infection risk appeared to be the strongest predictor of hospital length of stay. Additionally, several measures of hospital size demonstrated moderate relationships with the response variable but were highly correlated with one another. Therefore, Objective 1 focuses on developing an interpretable multiple linear regression model while evaluating multicollinearity and model assumptions.
+
+## Full Model
+```{r}
+full_mod <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineCultureRatio +
+    RoutineChestXrayRatio +
+    Beds +
+    MedSchoolAffiliation +
+    Region +
+    AvgDailyCensus +
+    AvgNurses +
+    PctServicesFacilities,
+  data = hospital
+)
+
+summary(full_mod)
+```
+## Multicollinearity Assessment
+```{r}
+summary(full_mod)
+
+vif(full_mod)
+```
+A multiple linear regression model was fit using all available predictors to explain variation in average hospital length of stay. The model was statistically significant overall (F(12,100) = 14.18, p < 0.001) and explained approximately 63.0% of the variation in length of stay (R² = 0.630; Adjusted R² = 0.586).
+
+Variance Inflation Factors (VIFs) were calculated to assess multicollinearity among predictors. The largest VIF values were observed for Beds (35.70) and AvgDailyCensus (34.21), indicating severe multicollinearity. This finding was anticipated based on the exploratory analysis, where Beds and AvgDailyCensus exhibited a correlation of 0.98. AvgNurses also displayed elevated collinearity (VIF = 7.06). Therefore, model simplification was explored to reduce redundancy among hospital size variables.
+
+Examination of the coefficient table showed that Age, InfectionRisk, Region, AvgDailyCensus, and AvgNurses were statistically significant predictors of LengthStay at the 0.05 significance level. In contrast, RoutineCultureRatio, Beds, MedSchoolAffiliation, and PctServicesFacilities were not statistically significant. RoutineChestXrayRatio was marginally significant (p = 0.079). Because Beds exhibited severe multicollinearity and was not statistically significant, it was selected as the first variable for removal.
+
+
+## Reduced Model 1 (Removing Beds)
+```{r}
+mod1 <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineCultureRatio +
+    RoutineChestXrayRatio +
+    MedSchoolAffiliation +
+    Region +
+    AvgDailyCensus +
+    AvgNurses +
+    PctServicesFacilities,
+  data = hospital
+)
+
+summary(mod1)
+vif(mod1)
+```
+
+Because Beds and AvgDailyCensus exhibited a correlation of 0.98 and VIF values exceeding 34 in the full model, Beds was removed to reduce multicollinearity. The resulting model maintained virtually identical explanatory power (Adjusted R² = 0.582) while substantially reducing collinearity among predictors.
+
+Removing Beds reduced the largest VIF from approximately 35.7 to 7.3 while producing only a negligible decrease in model fit (Adjusted R² decreased from 0.586 to 0.582). This suggests that Beds provided little unique information beyond AvgDailyCensus and AvgNurses, supporting its removal from the model.
+
+
+## Reduced Model 2 (Final Candidate Model)
+```{r}
+mod2 <- lm(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineChestXrayRatio +
+    Region +
+    AvgDailyCensus +
+    AvgNurses,
+  data = hospital
+)
+
+summary(mod2)
+vif(mod2)
+```
+Predictors with little evidence of association in the reduced model, including RoutineCultureRatio, MedSchoolAffiliation, and PctServicesFacilities, were removed. The resulting model retained nearly identical explanatory power while improving parsimony and reducing multicollinearity. Adjusted R² remained at 0.585 and all retained predictors were either statistically significant or close to significance.
+
+The reduced model retained the variables most strongly associated with hospital length of stay while eliminating predictors that contributed little explanatory value. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators remained statistically significant, while RoutineChestXrayRatio remained near the 0.05 significance threshold. The adjusted R² remained virtually unchanged compared to the full model, indicating that little explanatory power was lost despite removing four predictors.
+
+## Model Comparison
+```{r}
+AIC(full_mod)
+AIC(mod1)
+AIC(mod2)
+
+BIC(full_mod)
+BIC(mod1)
+BIC(mod2)
+```
+Model selection criteria further supported the reduced model. Model 2 produced the lowest AIC (378.45) and BIC (405.73) values among all candidate models. Lower AIC and BIC values indicate a better balance between model fit and model complexity. Therefore, Model 2 was selected as the preferred model for subsequent interpretation and diagnostics.
+
+## Regression Diagnostics
+```{r}
+par(mfrow = c(2,2))
+plot(mod2)
+```
+
+## Confidence Intervals
+```{r}
+confint(mod2)
+```
+The confidence intervals support the significance results obtained from the hypothesis tests. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators had confidence intervals that excluded zero, indicating statistically significant effects. In contrast, the confidence interval for RoutineChestXrayRatio included zero, suggesting weaker evidence for its association with LengthStay despite its marginal p-value.
+
+## Objective 1 Conclusion
+
+InfectionRisk was the strongest predictor of hospital length of stay, with higher infection risk associated with longer stays. Age and AvgDailyCensus were also positively associated with LengthStay, while AvgNurses exhibited a negative relationship after controlling for hospital size. Significant regional differences were observed, with hospitals in the NC, S, and W regions experiencing shorter average stays than hospitals in the NE region.
+
+A reduced multiple linear regression model containing Age, Infection Risk, Routine Chest X-Ray Ratio, Region, Average Daily Census, and Average Nurses was selected as the final model. This model achieved the lowest AIC and BIC values while maintaining explanatory power comparable to more complex alternatives. Diagnostic plots indicated that model assumptions were reasonably satisfied, supporting the use of this model for explaining variation in hospital length of stay.
+
+
+# Objective 2: Predictive Model Comparison
+
+The goal of Objective 2 is to identify a model that predicts average hospital length of stay as accurately as possible. We compared three models using 10-fold cross-validation:
+
+1. The final Objective 1 multiple linear regression model.
+2. An added-complexity multiple linear regression model with an interaction between infection risk and region.
+3. A random forest model as the nonparametric method.
+
+RMSE was used as the primary comparison metric because the objective is prediction and RMSE penalizes larger prediction errors more heavily. MAE was also included because it gives the average absolute prediction error in days.
+
+```{r objective-2-setup}
+set.seed(1234)
+
+folds <- createMultiFolds(
+  hospital_model$LengthStay,
+  k = 10,
+  times = 1
+)
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 1,
+  index = folds
+)
+```
+
+## Model 1: Objective 1 MLR
+
+```{r objective-2-model-1}
+set.seed(1234)
+
+obj1_train <- train(
+  LengthStay ~ Age +
+    InfectionRisk +
+    RoutineChestXrayRatio +
+    Region +
+    AvgDailyCensus +
+    AvgNurses,
+  data = hospital_model,
+  method = "lm",
+  trControl = fitControl
+)
+
+obj1_train
+```
+
+This model uses the final Objective 1 regression model, but fits it through `caret` so that cross-validated prediction metrics can be obtained.
+
+## Model 2: Added-Complexity MLR With Infection Risk by Region Interaction
+
+The EDA plot of infection risk and length of stay by region suggested that the infection risk slope may differ across regions. Therefore, the added-complexity MLR model includes an interaction between infection risk and region.
+
+```{r objective-2-model-2}
+set.seed(1234)
+
+complex_mlr_train <- train(
+  LengthStay ~ Age +
+    InfectionRisk * Region +
+    RoutineChestXrayRatio +
+    AvgDailyCensus +
+    AvgNurses,
+  data = hospital_model,
+  method = "lm",
+  trControl = fitControl
+)
+
+complex_mlr_train
+```
+
+The term `InfectionRisk * Region` includes infection risk, region, and the infection risk by region interaction. This allows the relationship between infection risk and length of stay to vary by geographic region.
+
+## Model 3: Random Forest
+
+The random forest model was used as the nonparametric model. Unlike linear regression, random forest does not require a linear relationship between the predictors and response. It can also capture nonlinear patterns and interactions automatically.
+
+```{r objective-2-model-3}
+set.seed(1234)
+
+rf_train <- train(
+  LengthStay ~ .,
+  data = hospital_model,
+  method = "rf",
+  trControl = fitControl,
+  tuneGrid = expand.grid(
+    mtry = 2:6
+  ),
+  importance = TRUE
+)
+
+rf_train
+plot(rf_train)
+```
+
+The tuning parameter `mtry` controls how many predictors are randomly considered at each split in the trees. The model selects the value of `mtry` with the lowest cross-validated RMSE.
+
+```{r random-forest-variable-importance}
+rf_importance <- varImp(rf_train)
+
+rf_importance
+plot(rf_importance)
+```
+
+The variable importance plot shows which predictors were most useful in the random forest predictions.
+
+## Model Comparison
+
+```{r objective-2-comparison-table}
+model_compare <- bind_rows(
+  data.frame(
+    Model = "Objective 1 MLR",
+    RMSE = min(obj1_train$results$RMSE),
+    Rsquared = max(obj1_train$results$Rsquared),
+    MAE = min(obj1_train$results$MAE)
+  ),
+  data.frame(
+    Model = "Interaction MLR",
+    RMSE = min(complex_mlr_train$results$RMSE),
+    Rsquared = max(complex_mlr_train$results$Rsquared),
+    MAE = min(complex_mlr_train$results$MAE)
+  ),
+  data.frame(
+    Model = "Random Forest",
+    RMSE = min(rf_train$results$RMSE),
+    Rsquared = max(rf_train$results$Rsquared),
+    MAE = min(rf_train$results$MAE)
+  )
+) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4))) %>%
+  arrange(RMSE)
+
+kable(
+  model_compare,
+  caption = "Objective 2 Model Comparison Using 10-Fold Cross-Validation"
+)
+```
+
+Based on the cross-validated model comparison table, the preferred model for prediction is the model with the lowest RMSE. In our current results, the Interaction MLR had the lowest RMSE and MAE. Therefore, if the goal is to predict future hospital stays, we would move forward with the Interaction MLR.
+
+The Interaction MLR slightly improved prediction accuracy compared to the Objective 1 MLR while still remaining interpretable. The random forest model performed worse than both regression models, which may be due to the small sample size of 113 hospitals. Although random forest is more flexible, the additional flexibility did not improve prediction accuracy for this dataset.
+
+# Conclusion
+
+For Objective 1, we fit a multiple linear regression model to assess whether infection risk is associated with average hospital length of stay after accounting for other hospital characteristics. The final model included age, infection risk, routine chest X-ray ratio, region, average daily census, and average number of nurses. The coefficient and confidence interval for infection risk were used to address the main research question.
+
+For Objective 2, we compared the Objective 1 model, an added-complexity interaction model, and a random forest model using 10-fold cross-validation. The Interaction MLR had the best predictive performance based on RMSE and MAE. Therefore, we recommend the Interaction MLR if the primary goal is prediction. However, because the improvement over the Objective 1 model was small, the Objective 1 model may still be reasonable if simplicity and interpretation are prioritized.
+
+One limitation is that the dataset contains only 113 hospitals, so the results may not generalize perfectly to all hospitals. Given more time, we would investigate additional interaction terms, compare more nonparametric methods, and validate the final model on an external dataset.
