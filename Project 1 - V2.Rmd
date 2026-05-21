@@ -1,7 +1,9 @@
 ---
 title: "Hospitalization Stays Regression Analysis"
 author: "Josh Samuel, Aayush Dalal"
-output: html_document
+output:
+  powerpoint_presentation:
+    reference_doc: "/Users/joshtsamuel/SMU/6372 Applied Statistics- Inference and Modeling/Project 1/template.pptx"
 editor_options: 
   chunk_output_type: console
 ---
@@ -190,7 +192,10 @@ A multiple linear regression model was fit using all available predictors to exp
 
 Variance Inflation Factors (VIFs) were calculated to assess multicollinearity among predictors. The largest VIF values were observed for Beds (35.70) and AvgDailyCensus (34.21), indicating severe multicollinearity. This finding was anticipated based on the exploratory analysis, where Beds and AvgDailyCensus exhibited a correlation of 0.98. AvgNurses also displayed elevated collinearity (VIF = 7.06). Therefore, model simplification was explored to reduce redundancy among hospital size variables.
 
+Beds was removed because it exhibited severe multicollinearity with AvgDailyCensus (correlation = 0.98), was not statistically significant, and contributed little additional explanatory information. Since AvgDailyCensus captures hospital utilization more directly, retaining it improved model interpretability while reducing redundancy among predictors.
+
 Examination of the coefficient table showed that Age, InfectionRisk, Region, AvgDailyCensus, and AvgNurses were statistically significant predictors of LengthStay at the 0.05 significance level. In contrast, RoutineCultureRatio, Beds, MedSchoolAffiliation, and PctServicesFacilities were not statistically significant. RoutineChestXrayRatio was marginally significant (p = 0.079). Because Beds exhibited severe multicollinearity and was not statistically significant, it was selected as the first variable for removal.
+
 
 
 ## Reduced Model 1 (Removing Beds)
@@ -234,7 +239,31 @@ vif(mod2)
 ```
 Predictors with little evidence of association in the reduced model, including RoutineCultureRatio, MedSchoolAffiliation, and PctServicesFacilities, were removed. The resulting model retained nearly identical explanatory power while improving parsimony and reducing multicollinearity. Adjusted R² remained at 0.585 and all retained predictors were either statistically significant or close to significance.
 
+### Final Model Equation
+
+The final selected multiple linear regression model is:
+
+$$
+\begin{aligned}
+\widehat{\text{LengthStay}} =\;&
+3.044
++ 0.072(\text{Age})
++ 0.456(\text{InfectionRisk}) \\
+&
++ 0.014(\text{RoutineChestXrayRatio})
+- 0.932(\text{RegionNC}) \\
+&
+- 1.224(\text{RegionS})
+- 2.005(\text{RegionW}) \\
+&
++ 0.0097(\text{AvgDailyCensus})
+- 0.0072(\text{AvgNurses})
+\end{aligned}
+$$
+Hospitals in the Northeast region serve as the reference category for the region indicators.
+
 The reduced model retained the variables most strongly associated with hospital length of stay while eliminating predictors that contributed little explanatory value. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators remained statistically significant, while RoutineChestXrayRatio remained near the 0.05 significance threshold. The adjusted R² remained virtually unchanged compared to the full model, indicating that little explanatory power was lost despite removing four predictors.
+
 
 ## Model Comparison
 ```{r}
@@ -248,6 +277,8 @@ BIC(mod2)
 ```
 Model selection criteria further supported the reduced model. Model 2 produced the lowest AIC (378.45) and BIC (405.73) values among all candidate models. Lower AIC and BIC values indicate a better balance between model fit and model complexity. Therefore, Model 2 was selected as the preferred model for subsequent interpretation and diagnostics.
 
+Model 2 also maintained an adjusted R² of approximately 0.585, indicating that the reduction in predictors resulted in minimal loss of explanatory power relative to the full model. This suggests that the removed variables contributed little meaningful information while increasing model complexity.
+
 ## Regression Diagnostics
 ```{r}
 par(mfrow = c(2,2))
@@ -260,11 +291,34 @@ confint(mod2)
 ```
 The confidence intervals support the significance results obtained from the hypothesis tests. Age, InfectionRisk, AvgDailyCensus, AvgNurses, and all Region indicators had confidence intervals that excluded zero, indicating statistically significant effects. In contrast, the confidence interval for RoutineChestXrayRatio included zero, suggesting weaker evidence for its association with LengthStay despite its marginal p-value.
 
+These intervals provide a range of plausible values for each coefficient and reinforce the statistical significance conclusions obtained from the regression output. Predictors whose confidence intervals exclude zero provide stronger evidence of an association with hospital length of stay.
+
+## Interpretations of Significant Predictors
+
+### Infection Risk
+Holding all other variables constant, a one-unit increase in Infection Risk is associated with an estimated increase of 0.456 days in average hospital length of stay. The 95% confidence interval is (0.241, 0.671) days, indicating a statistically significant positive relationship.
+
+### Age
+Holding all other variables constant, a one-year increase in average patient age is associated with an increase of approximately 0.072 days in average hospital length of stay.
+
+### Average Daily Census
+Holding all other variables constant, each additional patient in the average daily census is associated with an increase of approximately 0.01 days in average hospital length of stay.
+
+### Average Nurses
+Holding all other variables constant, each additional nurse is associated with a decrease of approximately 0.007 days in average hospital length of stay.
+
+### Region
+Relative to hospitals in the Northeast region, hospitals in the North Central, South, and West regions exhibited significantly shorter average lengths of stay.
+
 ## Objective 1 Conclusion
 
 InfectionRisk was the strongest predictor of hospital length of stay, with higher infection risk associated with longer stays. Age and AvgDailyCensus were also positively associated with LengthStay, while AvgNurses exhibited a negative relationship after controlling for hospital size. Significant regional differences were observed, with hospitals in the NC, S, and W regions experiencing shorter average stays than hospitals in the NE region.
 
 A reduced multiple linear regression model containing Age, Infection Risk, Routine Chest X-Ray Ratio, Region, Average Daily Census, and Average Nurses was selected as the final model. This model achieved the lowest AIC and BIC values while maintaining explanatory power comparable to more complex alternatives. Diagnostic plots indicated that model assumptions were reasonably satisfied, supporting the use of this model for explaining variation in hospital length of stay.
+
+Residual plots indicated no major violations of linearity, independence, or homoscedasticity assumptions. The Q-Q plot showed only minor departures from normality in the upper tail, which were not severe enough to invalidate model inference. Overall, the diagnostic results support the adequacy of the final regression model.
+
+Model selection was based on a combination of statistical significance, multicollinearity diagnostics, AIC/BIC comparisons, and diagnostic validation. Although more complex interaction models were explored, the final reduced model provided nearly identical explanatory power while improving interpretability and reducing multicollinearity, making it the preferred model for Objective 1.
 
 
 # Objective 2: Predictive Model Comparison
@@ -404,14 +458,18 @@ kable(
 )
 ```
 
-Based on the cross-validated model comparison table, the preferred model for prediction is the model with the lowest RMSE. In our current results, the Interaction MLR had the lowest RMSE and MAE. Therefore, if the goal is to predict future hospital stays, we would move forward with the Interaction MLR.
+Based on the cross-validated model comparison table, the preferred model for prediction is the model with the lowest RMSE. In our current results, the Objective 1 MLR had the lowest RMSE while the Interaction MLR had the lowest MAE. Therefore, if the goal is to predict future hospital stays, we would cautiously move forward with the Objective 1 MLR.
 
-The Interaction MLR slightly improved prediction accuracy compared to the Objective 1 MLR while still remaining interpretable. The random forest model performed worse than both regression models, which may be due to the small sample size of 113 hospitals. Although random forest is more flexible, the additional flexibility did not improve prediction accuracy for this dataset.
+The Objective 1 MLR slightly improved prediction accuracy compared to the Interaction MLR. The random forest model performed worse than both regression models, which may be due to the small sample size of 113 hospitals. Although random forest is more flexible, the additional flexibility did not improve prediction accuracy for this dataset.
 
 # Conclusion
 
 For Objective 1, we fit a multiple linear regression model to assess whether infection risk is associated with average hospital length of stay after accounting for other hospital characteristics. The final model included age, infection risk, routine chest X-ray ratio, region, average daily census, and average number of nurses. The coefficient and confidence interval for infection risk were used to address the main research question.
 
-For Objective 2, we compared the Objective 1 model, an added-complexity interaction model, and a random forest model using 10-fold cross-validation. The Interaction MLR had the best predictive performance based on RMSE and MAE. Therefore, we recommend the Interaction MLR if the primary goal is prediction. However, because the improvement over the Objective 1 model was small, the Objective 1 model may still be reasonable if simplicity and interpretation are prioritized.
+For Objective 2, we compared the Objective 1 model, an added-complexity interaction model, and a random forest model using 10-fold cross-validation. The Objective 1 MLR had the best predictive performance based on RMSE. Therefore, we recommend the Objective 1 MLR if the primary goal is prediction. However, because the improvement over the Interaction MLR was small, the Interaction MLR model may still be reasonable.
 
 One limitation is that the dataset contains only 113 hospitals, so the results may not generalize perfectly to all hospitals. Given more time, we would investigate additional interaction terms, compare more nonparametric methods, and validate the final model on an external dataset.
+
+
+
+
