@@ -136,26 +136,6 @@ Ayush
 “We are 95% confident that the estimated increase in average length of stay for a one unit increase in infection risk would be between .241 and .671 days”
 
 
-Slide 9 — Objective 2 Prediction Models
-Aayush
-
-“For Objective 2, the goal shifted from inference to prediction.”
-
-Josh
-
-“We compared three different predictive approaches:
-our baseline Objective 1 regression model,
-a more complex interaction regression model,
-and a Random Forest model.”
-
-Aayush
-
-“All models were evaluated using 10-fold cross-validation.”
-
-Josh
-
-“Our primary metric was RMSE because it penalizes large prediction errors more heavily, which is important in a hospital setting.”
-
 Slide 10 — Objective 2 Prediction Models
 
 Aayush
