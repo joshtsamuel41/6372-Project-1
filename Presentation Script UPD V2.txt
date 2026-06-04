@@ -1,0 +1,320 @@
+Slide 1 — Title Slide (0:00–0:45)
+Aayush
+
+“Good afternoon everyone. My name is Aayush Dalal.”
+
+Josh
+
+“And I’m Josh Samuel. Today we’ll be presenting our Project 1 analysis on hospital length of stay using regression and predictive modeling techniques.”
+
+Aayush
+
+“Our project focused on identifying the factors associated with longer hospital stays and comparing different predictive modeling approaches.”
+
+Slide 2 — Project Overview (0:45–2:00)
+Josh
+
+“Hospitals are interested in understanding what factors contribute to longer patient stays because length of stay directly impacts hospital capacity, staffing, and costs.”
+
+Aayush
+
+“Our response variable was average hospital length of stay measured in days.”
+
+Josh
+
+“We had two objectives:
+First, determine whether infection risk is associated with length of stay after accounting for other hospital characteristics.
+Second, compare different predictive models for forecasting future hospital stays.”
+
+Slide 3 — Data Overview (2:00–3:00)
+Aayush
+
+“The dataset contained information from 113 hospitals.”
+
+Josh
+
+“Several preprocessing decisions were made before modeling. We excluded the ID variable because it only identified hospitals and contained no predictive value.”
+
+Aayush
+
+“We also treated Region and Medical School Affiliation as categorical variables for regression modeling.”
+
+Josh
+
+“The response variable throughout the project was LengthStay.”
+
+Slide 4 — EDA Trends (3:00–4:30)
+Aayush
+
+"Before fitting any models, we wanted to understand the structure of the data and identify variables that appeared related to length of stay."
+
+"The average hospital stay in our dataset was approximately 9.65 days, with values ranging from about 6.7 days to nearly 20 days."
+
+"Infection Risk showed one of the clearest positive relationships with hospital length of stay."
+
+Josh
+
+"We also observed relationships involving average daily census and average nurses, which suggested that hospital size and staffing could influence patient stays."
+
+Aayush
+
+"At first glance, it may seem surprising that average nurses was associated with length of stay, but staffing levels often reflect hospital size and patient volume."
+
+"These variables were ultimately retained for the regression modeling stage because they demonstrated meaningful trends in the EDA."
+
+
+Slide 5 — Interaction Exploration (4:30–5:45)
+Josh
+
+“We also explored whether the effect of infection risk varied across hospital regions.”
+
+Aayush
+
+“The interaction plots suggested that the infection-risk slope was not identical across all regions, which motivated testing an InfectionRisk × Region interaction model later in Objective 2.”
+
+Josh
+
+“We additionally explored an interaction involving medical school affiliation, but it did not appear to add meaningful value and was dropped for parsimony.”
+
+Slide 6 — Objective 1 Model Development (5:45–8:00)
+Aayush
+
+"We evaluated statistical significance, VIF values, AIC, BIC, and diagnostic plots."
+
+Insert:
+
+Aayush
+
+"We wanted to understand which hospital characteristics were associated with longer stays, not simply maximize prediction accuracy."
+
+Josh
+
+"One major issue we discovered was severe multicollinearity involving Beds, AvgDailyCensus, and AvgNurses."
+
+Aayush
+
+"In particular, Beds and AvgDailyCensus had a correlation of approximately 0.98."
+
+"When predictors are that highly correlated, they are essentially providing the model with the same information."
+
+"This can inflate standard errors and make coefficient estimates unstable."
+
+Josh
+
+"Because Beds was also statistically insignificant, we removed it and retained Average Daily Census."
+
+Aayush
+
+"We then removed Routine Culture Ratio, Medical School Affiliation, and Percent Services Facilities because they did not provide strong evidence of association with length of stay."
+
+Josh
+
+"After comparing candidate models using AIC, BIC, adjusted R-squared, and VIF values, we selected our reduced model as the final Objective 1 model."
+
+Slide 7 — Final Objective 1 Model (8:00–10:00)
+Aayush
+
+“This slide shows our final Objective 1 model.”
+
+Josh
+
+“The final model achieved an R² of approximately 0.614 and an adjusted R² of 0.585, with an overall model p-value below 0.001.”
+
+Aayush
+
+“The most important finding involved Infection Risk.”
+
+Josh
+
+“Holding all other variables constant, a one-unit increase in infection risk was associated with an estimated increase of approximately 0.456 days in average hospital stay.”
+
+Aayush
+
+"At first glance, 0.456 days may not sound particularly large."
+
+"However, infection risk can vary substantially across hospitals."
+
+"A difference of several units in infection risk could translate into multiple additional days of hospitalization."
+
+"That becomes operationally important because longer stays increase resource utilization, staffing demands, and overall hospital costs."
+
+Then continue with:
+
+"We also observed significant regional effects..."
+
+Aayush
+
+“We also observed significant regional effects, along with associations involving age, average daily census, and nursing staff.”
+
+Slide 8 — Diagnostics & Conclusion (10:00–11:30)
+Josh
+
+“We evaluated the standard regression assumptions using residual diagnostics.”
+
+Aayush
+
+“The residual plots did not show major linearity or variance concerns, and while the Q-Q plot showed mild upper-tail departures, the violations were not severe enough to invalidate inference.”
+
+
+Slide 9 
+
+Josh
+
+“Overall, the results supported the conclusion that infection risk remains positively associated with hospital length of stay even after controlling for hospital characteristics.”
+
+Ayush
+
+“We are 95% confident that the estimated increase in average length of stay for a one unit increase in infection risk would be between .241 and .671 days”
+
+Aayush
+
+"Because this confidence interval does not include zero, it provides additional evidence that infection risk is significantly associated with length of stay."
+
+"This was especially important because infection risk was the primary variable of interest in our study."
+
+Slide 10 — Objective 2 Prediction Models
+
+Aayush
+
+“For Objective 2, the goal shifted from inference to prediction.”
+
+Josh
+
+“We compared three different predictive approaches:
+
+our baseline Objective 1 regression model,
+
+a more complex interaction regression model,
+
+and a Random Forest model.”
+
+Aayush
+
+“All models were evaluated using 10-fold cross-validation.”
+
+Aayush
+
+"Cross-validation repeatedly partitions the data into training and testing sets, allowing us to obtain a more reliable estimate of predictive performance."
+
+Josh
+
+"Our primary metric was RMSE because it penalizes larger prediction errors more heavily."
+
+"In a hospital setting, large prediction errors are especially costly because they can affect staffing, planning, and resource allocation decisions."
+
+Josh
+
+“Our primary metric was RMSE because it penalizes large prediction errors more heavily, which is important in a hospital setting.”
+
+
+
+Slide 11 — Prediction Results
+
+Josh
+
+“Interestingly, the simpler Objective 1 regression model actually achieved the best overall predictive performance.”
+
+Aayush
+
+“It achieved the lowest RMSE at 1.2315 days and the highest cross-validated R².”
+
+Josh
+
+“The interaction model achieved a slightly lower MAE, but the improvement was extremely small relative to the additional complexity.”
+
+Aayush
+
+“Both regression models outperformed the Random Forest model, likely because of the relatively small sample size of only 113 hospitals.”
+
+Aayush
+
+"One finding we thought was particularly interesting was the performance of the Random Forest."
+
+"Many people expect machine learning methods to automatically outperform regression models."
+
+Josh
+
+"However, our dataset only contained 113 hospitals."
+
+Aayush
+
+"When datasets are relatively small and relationships are reasonably linear, simpler regression models can often outperform more flexible machine learning approaches."
+
+Josh
+
+"This result reinforces the idea that additional complexity does not always improve predictive performance."
+
+Shiny App Demo
+Aayush
+
+"Let's begin with values near the average hospital in our dataset."
+
+(Read prediction)
+
+Josh
+
+"Now let's increase Infection Risk from 4 to 7."
+
+(Change value)
+
+Aayush
+
+"We can immediately see the predicted length of stay increase."
+
+"This aligns directly with the positive coefficient we observed in our final regression model."
+
+Josh
+
+"Now let's increase the number of nurses."
+
+(Change nurses)
+
+Aayush
+
+"We now see the predicted length of stay decrease."
+
+"Again, this reflects the negative coefficient associated with nursing staff in our final model."
+
+Josh
+
+"On the second tab, we summarize the Objective 2 model comparison."
+
+Aayush
+
+"This dashboard compares RMSE, MAE, and R-squared across all three models."
+
+"It provides a visual summary showing that the simpler Objective 1 regression model ultimately provided the strongest overall performance."
+
+Final Slide — Recommendation & Conclusion (17:00–19:00)
+Josh
+
+“Our final recommendation is the Objective 1 multiple linear regression model.”
+
+Aayush
+
+“It achieved the best balance of predictive accuracy, interpretability, and parsimony.”
+
+Josh
+
+“The analysis demonstrated that infection risk is positively associated with hospital length of stay even after accounting for staffing, census, age, and region.”
+
+Aayush
+
+“We also learned that more complex models do not always outperform simpler models, especially with relatively small datasets.”
+
+Josh
+
+“Some limitations include the small sample size and the possibility that the results may not generalize to all hospital systems.”
+
+Aayush
+
+“For future work, we would consider collecting more hospital data, exploring additional interaction terms, and testing more advanced nonparametric models.”
+
+Q&A
+Josh
+
+“Thank you for listening.”
+
+Aayush
+
+“We’d be happy to answer any questions.”
